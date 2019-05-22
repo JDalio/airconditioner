@@ -92,9 +92,14 @@ public class Client {
                     new Timer().scheduleAtFixedRate(new TimerTask() {
                         @Override
                         public void run() {
+                            int curTemp = it - (tc - 1) / duration > tt ?
+                                    it - (tc - 1) / duration : tt;
+                            if(curTemp<tt){
+                                System.out.println("Have Reached Target Temp: "+tt);
+                            }
+
                             if (w > 0) {
-                                int curTemp = it - (tc - 1) / duration > tt ?
-                                        it - (tc - 1) / duration : tt;
+                                msg.put("r",roomNum);
                                 msg.put("tc", tc);
                                 msg.put("t", curTemp);
                                 try {
@@ -104,6 +109,7 @@ public class Client {
                                 }
                             } else if (w == 0) {
                                 w = -1;
+                                msg.put("r",roomNum);
                                 msg.put("tc", tc);
                                 msg.put("w", 0);
                                 try {
