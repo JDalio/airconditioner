@@ -2,12 +2,12 @@ package edu.bupt.airconditioner;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.Timer;
 import java.util.TimerTask;
 
 public class Client {
@@ -24,20 +24,19 @@ public class Client {
     private Message msg;
 
     // test configuration
-    private String testAddr="localhost";
+    private String testAddr = "localhost";
     private int testPort = 9000;
 
-    private int roomNum=1;
-    private String kg="123456";
+    private int roomNum = 1;
+    private String kg = "123456";
 
     //home configuration
     private int it;
     private int tt;
-    private int w;
     private int tc;
-    private double ts;
-    // state monitor
-    private TimerTask monitor;
+    private long ts;
+    private volatile int w;
+    private int duration;
 
     public Client(String host, int port) throws Exception {
         this.host = host;
@@ -45,11 +44,10 @@ public class Client {
         selector = Selector.open();
         channel = SocketChannel.open();
         channel.configureBlocking(false);
-        testsc=SocketChannel.open();
+        testsc = SocketChannel.open();
         testsc.configureBlocking(false);
-        msg=new Message(kg,""+roomNum);
+        msg = new Message(kg, "" + roomNum);
     }
-
 
 
     public void handleInput(SelectionKey key) throws Exception {
@@ -72,26 +70,57 @@ public class Client {
                 msg.read(key);
 
                 // connect to server
-                if(msg.get("e")==0){
+                if (msg.get("e") == 0) {
                     System.out.println("Connect to test");
                 }
 
                 // test init the room
-                else if(msg.get("w") >0){
-                    this.it=msg.get("it");
-                    this.tt=msg.get("tt");
-                    this.w=msg.get("w");
-                    this.tc=msg.get("tc");
-                    this.ts=((double)msg.get("ts"))/1000;
+                else if (msg.get("w") > 0) {
+                    this.it = msg.get("it");
+                    this.tt = msg.get("tt");
+                    this.w = msg.get("w");
+                    if (w == 3) {
+                        duration = 1;
+                    } else if (w == 1) {
+                        duration = 3;
+                    } else {
+                        duration = 2;
+                    }
+                    this.tc = msg.get("tc");
+                    this.ts = msg.get("ts");
                     // launch new thread to report state Periodically
+                    new Timer().scheduleAtFixedRate(new TimerTask() {
+                        @Override
+                        public void run() {
+                            if (w > 0) {
+                                int curTemp = it - (tc - 1) / duration > tt ?
+                                        it - (tc - 1) / duration : tt;
+                                msg.put("tc", tc);
+                                msg.put("t", curTemp);
+                                try {
+                                    msg.send(channel);
+                                } catch (Exception e) {
+                                    System.out.println("Monitor 2 Server w > 0:" + e);
+                                }
+                            } else if (w == 0) {
+                                w = -1;
+                                msg.put("tc", tc);
+                                msg.put("w", 0);
+                                try {
+                                    msg.send(channel);
+                                } catch (Exception e) {
+                                    System.out.println("Monitor 2 Server w = 0:" + e);
 
-
+                                }
+                            }
+                            tc++;
+                        }
+                    }, 0, this.ts);
                 }
 
                 // stop the client
-                else if(msg.get("w")==0){
-                    this.w=0;
-                    this.stop();
+                else if (msg.get("w") == 0) {
+                    this.w = 0;
                 }
 
             }
@@ -125,16 +154,17 @@ public class Client {
     }
 
     private void doConnect() throws IOException {
-        testsc.connect(new InetSocketAddress(testAddr,testPort));
-        testsc.register(selector,SelectionKey.OP_CONNECT);
+        testsc.connect(new InetSocketAddress(testAddr, testPort));
+        testsc.register(selector, SelectionKey.OP_CONNECT);
 
         channel.connect(new InetSocketAddress(host, port));
         channel.register(selector, SelectionKey.OP_CONNECT);
     }
 
-    private void stop(){
-        this.stop=true;
+    private void stop() {
+        this.stop = true;
     }
+
     public static void main(String[] args) throws Exception {
         Client handler = new Client("localhost", 8080);
         handler.run();
