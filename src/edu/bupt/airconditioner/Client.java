@@ -83,6 +83,11 @@ public class Client {
                 else if (msg.get("w") > 0) {
                     this.it = msg.get("it");
                     this.tt = msg.get("tt");
+
+                    if (tt < 18 || tt > 28) {
+                        throw new RuntimeException("Target Temperature Invalid");
+                    }
+
                     if (tt < it) {
                         modeHot = -1;
                     }
