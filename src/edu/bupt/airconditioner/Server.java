@@ -102,15 +102,10 @@ public class Server {
                     msg.put("w", 0);
                     msg.send(sc);
 
-
                     int[] roomBill = bill.get(roomNum);
                     System.out.println("###### RoomNum:" + roomNum + " W=0 bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
-                    roomBill[2] += Math.abs(roomBill[1] - roomBill[0]);
+                    roomBill[1] += roomBill[0] * (tc + roomBill[2] + 1);
                     bill.put(roomNum, roomBill);
-//                    int[] roomBill = bill.get(roomNum);
-//                    System.out.println("###### RoomNum:" + roomNum + " W=0 bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
-//                    roomBill[1] += roomBill[0] * (tc + roomBill[2] + 1);
-//                    bill.put(roomNum, roomBill);
                 }
 
                 //receive from clients
@@ -133,20 +128,6 @@ public class Server {
                         bill.put(roomNum, init);
                     } else {
                         int[] roomBill = bill.get(roomNum);
-                        if (t != roomBill[1]) {
-                            if (Math.abs(roomBill[1] - t) != 1) {
-                                System.out.println("Bill Count error");
-                                throw new RuntimeException("Bill Count error");
-                            }
-                            roomBill[1] = t;
-                            roomBill[2]++;
-                        } else {
-                            roomBill[2] += Math.abs(roomBill[1] - roomBill[0]);
-                        }
-                        bill.put(roomNum, roomBill);
-                    }
-                    /*else {
-                        int[] roomBill = bill.get(roomNum);
                         if (t != roomBill[1] && roomBill[2] >= 0) {
                             if (Math.abs(roomBill[1] - t) != 1) {
                                 System.out.println("Bill Count error");
@@ -162,12 +143,12 @@ public class Server {
                                 // 2 存当前的tc
                                 roomBill[2] = -1 * tc;
                                 // 1 当前的钱
-                                roomBill[1]=pay;
-                                System.out.println("###### RoomNum:"+roomNum+" Save bill0:"+roomBill[0]+" bill1:"+roomBill[1]+" Now pay: "+roomBill[2]);
+                                roomBill[1] = pay;
+                                System.out.println("###### RoomNum:" + roomNum + " Save bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
                             }
                         }
                         bill.put(roomNum, roomBill);
-                    }*/
+                    }
                 }
 
                 //receive from test to print bill
@@ -179,7 +160,7 @@ public class Server {
 
                         msg.put("r", b);
                         msg.put("tc", tc);
-                        msg.put("b", bill.get(b)[2]);
+                        msg.put("b", bill.get(b)[1]);
                         msg.send(sc);
                     }
                 }
