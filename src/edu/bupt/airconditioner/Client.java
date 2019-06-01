@@ -9,6 +9,8 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 public class Client {
     // server port and host
@@ -27,8 +29,9 @@ public class Client {
     private String testAddr = "localhost";
     private int testPort = 9000;
 
-    private int roomNum = 1;
-    private String kg = "123456";
+    private static int roomNum = 1;
+
+    private String kg = "BQD64Y";
 
     //home configuration
     private int it;
@@ -37,6 +40,8 @@ public class Client {
     private long ts;
     private volatile int w;
     private int duration;
+    private int modeHot = 1; // 1制热, -1制冷
+    private Timer timer = new Timer();
 
     public Client(String host, int port) throws Exception {
         this.host = host;
@@ -49,7 +54,6 @@ public class Client {
         msg = new Message(kg, "" + roomNum);
     }
 
-
     public void handleInput(SelectionKey key) throws Exception {
         if (key.isValid()) {
             SocketChannel sc = (SocketChannel) key.channel();
@@ -59,25 +63,29 @@ public class Client {
 
                 if (sc.finishConnect()) {
                     sc.register(selector, SelectionKey.OP_READ);
+                    System.out.println("Connect to Server/Test");
                     msg.request(key);
                 } else {
                     throw new RuntimeException("Connect Fail");
                 }
             }
 
-            // receive data from server or test
+            // receive message from server or test
             if (key.isReadable()) {
                 msg.read(key);
 
-                // connect to server
+                // Pass Test Validation
                 if (msg.get("e") == 0) {
-                    System.out.println("Connect to test");
+                    System.out.println("Pass Validation");
                 }
 
                 // test init the room
                 else if (msg.get("w") > 0) {
                     this.it = msg.get("it");
                     this.tt = msg.get("tt");
+                    if (tt < it) {
+                        modeHot = -1;
+                    }
                     this.w = msg.get("w");
                     if (w == 3) {
                         duration = 1;
@@ -88,49 +96,65 @@ public class Client {
                     }
                     this.tc = msg.get("tc");
                     this.ts = msg.get("ts");
+
                     // launch new thread to report state Periodically
-                    new Timer().scheduleAtFixedRate(new TimerTask() {
+                    timer.scheduleAtFixedRate(new TimerTask() {
                         @Override
                         public void run() {
-                            int curTemp = it - (tc - 1) / duration > tt ?
-                                    it - (tc - 1) / duration : tt;
-                            if(curTemp<tt){
-                                System.out.println("Have Reached Target Temp: "+tt);
+                            System.out.println(">>>>>> Client tc:" + tc);
+                            int temp = it + modeHot * (tc - 1) / duration;
+
+                            if (modeHot == 1) {
+                                if (temp > tt) {
+                                    System.out.println("Have Reached Target Temp: " + tt + " Current tc: " + tc);
+                                    temp = tt;
+                                }
+                            } else {
+                                if (temp < tt) {
+                                    System.out.println("Have Reached Target Temp: " + tt + " Current tc: " + tc);
+                                    temp = tt;
+                                }
                             }
 
                             if (w > 0) {
-                                msg.put("r",roomNum);
-                                msg.put("tc", tc);
-                                msg.put("t", curTemp);
-                                try {
-                                    msg.send(channel);
-                                } catch (Exception e) {
-                                    System.out.println("Monitor 2 Server w > 0:" + e);
+                                if ((tc - 1) % duration == 0 || temp == tt) {
+                                    msg.put("r", roomNum);
+                                    msg.put("tc", tc);
+                                    msg.put("t", temp);
+                                    try {
+                                        System.out.println("thread send");
+                                        msg.send(channel);
+                                    } catch (Exception e) {
+                                        System.out.println("Monitor 2 Server w > 0:" + e);
+                                    }
                                 }
-                            } else if (w == 0) {
-                                w = -1;
-                                msg.put("r",roomNum);
-                                msg.put("tc", tc);
-                                msg.put("w", 0);
-                                try {
-                                    msg.send(channel);
-                                } catch (Exception e) {
-                                    System.out.println("Monitor 2 Server w = 0:" + e);
-
-                                }
+                                tc++;
                             }
-                            tc++;
                         }
                     }, 0, this.ts);
                 }
 
                 // stop the client
-                else if (msg.get("w") == 0) {
+                else if (msg.get("w") == 0 && this.w != 0) {
                     this.w = 0;
+                    timer.cancel();
+                    msg.put("r", roomNum);
+                    msg.put("tc", msg.get("tc"));
+                    msg.put("w", 0);
+                    try {
+                        System.out.println("main send");
+                        msg.send(channel);
+                    } catch (Exception e) {
+                        System.out.println("Monitor 2 Server w = 0:" + e);
+
+                    }
                 }
 
             }
+        } else {
+            stop();
         }
+
     }
 
     public void run() throws Exception {
@@ -172,9 +196,8 @@ public class Client {
     }
 
     public static void main(String[] args) throws Exception {
+        roomNum = Integer.valueOf(args[0]);
         Client handler = new Client("localhost", 8080);
         handler.run();
     }
-
-
 }

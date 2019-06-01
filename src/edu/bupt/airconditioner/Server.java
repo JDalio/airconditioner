@@ -5,10 +5,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 
 public class Server {
@@ -18,6 +15,8 @@ public class Server {
 
     private volatile boolean stop;
 
+    private int validCondNums = 0;
+
     // message processor
     private Message msg;
 
@@ -26,10 +25,10 @@ public class Server {
     private int testPort = 9000;
 
     //      bill detail
-    //      Map<roomNum,int[PrevTc, Pay]    >
+    //      Map<roomNum,int[TargetTemp, PrevTemp, Pay]>
     private Map<Integer, int[]> bill;
 
-    private String kg = "123456";
+    private String kg = "BQD64Y";
 
     public Server(int port) throws Exception {
         selector = Selector.open();
@@ -55,6 +54,7 @@ public class Server {
                 SocketChannel sc = (SocketChannel) key.channel();
                 if (sc.finishConnect()) {
                     sc.register(selector, SelectionKey.OP_READ);
+                    System.out.println("Connect to Test");
                     msg.request(key);
                 } else {
                     throw new RuntimeException("Connect Fail");
@@ -67,66 +67,126 @@ public class Server {
                 SocketChannel accept = schannel.accept();
                 accept.configureBlocking(false);
                 accept.register(selector, SelectionKey.OP_READ);
+                System.out.println("Client connect and registered");
             }
+
 
             //receive message from test or clients
             if (key.isReadable()) {
                 msg.read(key);
 
-                // connect to test and start test
+                // Pass Test Validation
                 if (msg.get("e") == 0) {
-                    System.out.println("Connect to test");
-                    msg.put("i", 1);
-                    msg.response(key);
+                    System.out.println("Pass Validation");
+                }
+
+                // When 4 Room login, Start Test
+                else if (msg.get("k") == 200) {
+                    System.out.println("Client " + msg.get("r") + " login to Test");
+                    validCondNums++;
+                    if (validCondNums == 4) {
+                        msg.put("i", 1);
+                        msg.response(sc);
+                        System.out.println("Start Test");
+                        validCondNums = -1;
+                    }
                 }
 
                 //client terminate
                 else if (msg.get("w") == 0) {
                     int roomNum = msg.get("r");
-
+                    int tc = msg.get("tc");
                     // send room state to server
                     msg.put("r", roomNum);
-                    msg.put("tc", msg.get("tc"));
+                    msg.put("tc", tc);
                     msg.put("w", 0);
                     msg.send(sc);
 
+
+                    int[] roomBill = bill.get(roomNum);
+                    System.out.println("###### RoomNum:" + roomNum + " W=0 bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
+                    roomBill[2] += Math.abs(roomBill[1] - roomBill[0]);
+                    bill.put(roomNum, roomBill);
+//                    int[] roomBill = bill.get(roomNum);
+//                    System.out.println("###### RoomNum:" + roomNum + " W=0 bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
+//                    roomBill[1] += roomBill[0] * (tc + roomBill[2] + 1);
+//                    bill.put(roomNum, roomBill);
                 }
 
                 //receive from clients
-                else if (msg.get("r") >= 0) {
+                else if (msg.get("r") > 0) {
                     int roomNum = msg.get("r");
                     int t = msg.get("t");
-                    // send to test
+                    int tc = msg.get("tc");
+
                     msg.put("r", roomNum);
-                    msg.put("tc", msg.get("tc"));
+                    msg.put("tc", tc);
                     msg.put("t", t);
                     msg.send(sc);
 
                     // refresh bill
-                    int[] cur = new int[2];
-                    if (bill.containsKey(roomNum)) {
-                        int[] prev = bill.get(roomNum);
-                        cur[0] = t;
-                        cur[1] = prev[1] + prev[0] - t;
+                    //init target temperature of all rooms
+                    if (!bill.containsKey(roomNum)) {
+                        int[] init = new int[3];
+                        init[0] = t;
+                        init[1] = t;
+                        bill.put(roomNum, init);
                     } else {
-                        cur[0] = t;
-                        cur[1] = 0;
+                        int[] roomBill = bill.get(roomNum);
+                        if (t != roomBill[1]) {
+                            if (Math.abs(roomBill[1] - t) != 1) {
+                                System.out.println("Bill Count error");
+                                throw new RuntimeException("Bill Count error");
+                            }
+                            roomBill[1] = t;
+                            roomBill[2]++;
+                        } else {
+                            roomBill[2] += Math.abs(roomBill[1] - roomBill[0]);
+                        }
+                        bill.put(roomNum, roomBill);
                     }
-                    bill.put(roomNum, cur);
-
+                    /*else {
+                        int[] roomBill = bill.get(roomNum);
+                        if (t != roomBill[1] && roomBill[2] >= 0) {
+                            if (Math.abs(roomBill[1] - t) != 1) {
+                                System.out.println("Bill Count error");
+                                throw new RuntimeException("Bill Count error");
+                            }
+                            roomBill[1] = t;
+                            roomBill[2]++;
+                        } else {
+                            if (roomBill[2] >= 0) {
+                                int pay = roomBill[2];
+                                // 0 存每次的步长
+                                roomBill[0] = Math.abs(roomBill[1] - roomBill[0]);
+                                // 2 存当前的tc
+                                roomBill[2] = -1 * tc;
+                                // 1 当前的钱
+                                roomBill[1]=pay;
+                                System.out.println("###### RoomNum:"+roomNum+" Save bill0:"+roomBill[0]+" bill1:"+roomBill[1]+" Now pay: "+roomBill[2]);
+                            }
+                        }
+                        bill.put(roomNum, roomBill);
+                    }*/
                 }
 
                 //receive from test to print bill
-                else if (msg.get("b") == 1) {
-                    int tc = msg.get("tc");
-                    String result = "";
-                    for (Integer roomNum : bill.keySet()) {
-                        result += "r=" + roomNum + " tc=" + tc + " b=" + bill.get(roomNum)[1] + "\n";
+                else if (msg.get("b") != -1) {
+                    List<LinkedHashMap<String, Integer>> orders = msg.getBillOrders();
+                    for (LinkedHashMap<String, Integer> order : orders) {
+                        int tc = order.get("tc");
+                        int b = order.get("b");
+
+                        msg.put("r", b);
+                        msg.put("tc", tc);
+                        msg.put("b", bill.get(b)[2]);
+                        msg.send(sc);
                     }
-                    msg.send(sc, result);
                 }
             }
 
+        } else {
+            stop();
         }
     }
 
