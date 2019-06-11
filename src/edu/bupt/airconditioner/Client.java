@@ -26,12 +26,12 @@ public class Client {
     private Message msg;
 
     // test configuration
-    private String testAddr = "localhost";
+    private String testAddr = "192.168.2.10";
     private int testPort = 9000;
 
     private static int roomNum = 1;
 
-    private String kg = "BQD64Y";
+    private String kg = "ETWHC5";
 
     //home configuration
     private int it;
@@ -63,8 +63,12 @@ public class Client {
 
                 if (sc.finishConnect()) {
                     sc.register(selector, SelectionKey.OP_READ);
-                    System.out.println("Connect to Server/Test");
-                    msg.request(key);
+                    if (sc == testsc) {
+                        msg.request(key);
+                        System.out.println("Connect to Test");
+                    } else {
+                        System.out.println("Connect to Server");
+                    }
                 } else {
                     throw new RuntimeException("Connect Fail");
                 }
@@ -202,7 +206,7 @@ public class Client {
 
     public static void main(String[] args) throws Exception {
         roomNum = Integer.valueOf(args[0]);
-        Client handler = new Client("localhost", 8080);
+        Client handler = new Client("192.168.3.212", 5555);
         handler.run();
     }
 }

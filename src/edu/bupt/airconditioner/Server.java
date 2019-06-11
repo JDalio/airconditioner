@@ -21,14 +21,14 @@ public class Server {
     private Message msg;
 
     // test configuration
-    private String testAddr = "localhost";
+    private String testAddr = "192.168.2.10";
     private int testPort = 9000;
 
     //      bill detail
     //      Map<roomNum,int[TargetTemp, PrevTemp, Pay]>
     private Map<Integer, int[]> bill;
 
-    private String kg = "BQD64Y";
+    private String kg = "ETWHC5";
 
     public Server(int port) throws Exception {
         selector = Selector.open();
@@ -63,6 +63,15 @@ public class Server {
 
             // client connection establish
             if (key.isAcceptable()) {
+                validCondNums++;
+                if (validCondNums == 4) {
+                    Thread.sleep(100);
+                    msg.put("i", 1);
+                    msg.response(sc);
+                    System.out.println("Start Test");
+                    validCondNums = -1;
+                }
+
                 ServerSocketChannel schannel = (ServerSocketChannel) key.channel();
                 SocketChannel accept = schannel.accept();
                 accept.configureBlocking(false);
@@ -80,16 +89,9 @@ public class Server {
                     System.out.println("Pass Validation");
                 }
 
-                // When 4 Room login, Start Test
+//                 When 4 Room login, Start Test
                 else if (msg.get("k") == 200) {
                     System.out.println("Client " + msg.get("r") + " login to Test");
-                    validCondNums++;
-                    if (validCondNums == 4) {
-                        msg.put("i", 1);
-                        msg.response(sc);
-                        System.out.println("Start Test");
-                        validCondNums = -1;
-                    }
                 }
 
                 //client terminate
@@ -204,7 +206,7 @@ public class Server {
     }
 
     public static void main(String[] args) throws Exception {
-        Server server = new Server(8080);
+        Server server = new Server(5555);
         server.run();
     }
 }
