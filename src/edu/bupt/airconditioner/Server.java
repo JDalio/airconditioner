@@ -21,7 +21,7 @@ public class Server {
     private Message msg;
 
     // test configuration
-    private String testAddr = "192.168.2.10";
+    private String testAddr = "192.169.2.10";
     private int testPort = 9000;
 
     //      bill detail
@@ -63,15 +63,6 @@ public class Server {
 
             // client connection establish
             if (key.isAcceptable()) {
-                validCondNums++;
-                if (validCondNums == 4) {
-                    Thread.sleep(100);
-                    msg.put("i", 1);
-                    msg.response(sc);
-                    System.out.println("Start Test");
-                    validCondNums = -1;
-                }
-
                 ServerSocketChannel schannel = (ServerSocketChannel) key.channel();
                 SocketChannel accept = schannel.accept();
                 accept.configureBlocking(false);
@@ -89,9 +80,16 @@ public class Server {
                     System.out.println("Pass Validation");
                 }
 
-//                 When 4 Room login, Start Test
+                // When 4 Room login, Start Test
                 else if (msg.get("k") == 200) {
                     System.out.println("Client " + msg.get("r") + " login to Test");
+                    validCondNums++;
+                    if (validCondNums == 4) {
+                        msg.put("i", 1);
+                        msg.response(sc);
+                        System.out.println("Start Test");
+                        validCondNums = -1;
+                    }
                 }
 
                 //client terminate
@@ -104,6 +102,11 @@ public class Server {
                     msg.put("w", 0);
                     msg.send(sc);
 
+
+//                    int[] roomBill = bill.get(roomNum);
+//                    System.out.println("###### RoomNum:" + roomNum + " W=0 bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
+//                    roomBill[2] += Math.abs(roomBill[1] - roomBill[0]);
+//                    bill.put(roomNum, roomBill);
                     int[] roomBill = bill.get(roomNum);
                     System.out.println("###### RoomNum:" + roomNum + " W=0 bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
                     roomBill[1] += roomBill[0] * (tc + roomBill[2] + 1);
@@ -128,7 +131,22 @@ public class Server {
                         init[0] = t;
                         init[1] = t;
                         bill.put(roomNum, init);
-                    } else {
+                    }
+//                    else {
+//                        int[] roomBill = bill.get(roomNum);
+//                        if (t != roomBill[1]) {
+//                            if (Math.abs(roomBill[1] - t) != 1) {
+//                                System.out.println("Bill Count error");
+//                                throw new RuntimeException("Bill Count error");
+//                            }
+//                            roomBill[1] = t;
+//                            roomBill[2]++;
+//                        } else {
+//                            roomBill[2] += Math.abs(roomBill[1] - roomBill[0]);
+//                        }
+//                        bill.put(roomNum, roomBill);
+//                    }
+                    else {
                         int[] roomBill = bill.get(roomNum);
                         if (t != roomBill[1] && roomBill[2] >= 0) {
                             if (Math.abs(roomBill[1] - t) != 1) {
@@ -145,8 +163,8 @@ public class Server {
                                 // 2 存当前的tc
                                 roomBill[2] = -1 * tc;
                                 // 1 当前的钱
-                                roomBill[1] = pay;
-                                System.out.println("###### RoomNum:" + roomNum + " Save bill0:" + roomBill[0] + " bill1:" + roomBill[1] + " Now pay: " + roomBill[2]);
+                                roomBill[1]=pay;
+                                System.out.println("###### RoomNum:"+roomNum+" Save bill0:"+roomBill[0]+" bill1:"+roomBill[1]+" Now pay: "+roomBill[2]);
                             }
                         }
                         bill.put(roomNum, roomBill);
@@ -162,7 +180,7 @@ public class Server {
 
                         msg.put("r", b);
                         msg.put("tc", tc);
-                        msg.put("b", bill.get(b)[1]);
+                        msg.put("b", bill.get(b)[2]);
                         msg.send(sc);
                     }
                 }

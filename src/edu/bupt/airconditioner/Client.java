@@ -9,8 +9,6 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 
 public class Client {
     // server port and host
